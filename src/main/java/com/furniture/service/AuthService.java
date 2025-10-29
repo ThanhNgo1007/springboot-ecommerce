@@ -1,4 +1,8 @@
 package com.furniture.service;
 
-public class AuthService {
+import com.furniture.response.SignupRequest;
+
+public interface AuthService {
+
+    String createUser(SignupRequest req);
 }
