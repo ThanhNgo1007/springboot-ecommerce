@@ -2,7 +2,10 @@ package com.furniture.controller;
 
 import com.furniture.domain.USER_ROLE;
 import com.furniture.modal.User;
+import com.furniture.modal.VerificationCode;
 import com.furniture.repository.UserRepository;
+import com.furniture.request.LoginRequest;
+import com.furniture.response.ApiResponse;
 import com.furniture.response.AuthResponse;
 import com.furniture.response.SignupRequest;
 import com.furniture.service.AuthService;
@@ -22,13 +25,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> createUserHandler(@RequestBody SignupRequest req) {
-
-//        User user = new User();
-//        user.setEmail(req.getEmail());
-//        user.setFullName(req.getFullName());
-//
-//        User savedUser = userRepository.save(user);
+    public ResponseEntity<AuthResponse> createUserHandler(@RequestBody SignupRequest req) throws Exception {
 
         String jwt = authService.createUser(req);
 
@@ -40,5 +37,26 @@ public class AuthController {
         return ResponseEntity.ok(res);
     }
 
+    @PostMapping("/sent/login-signup-otp")
+    public ResponseEntity<ApiResponse> sentOtpHandler(
+            @RequestBody VerificationCode req) throws Exception {
 
+
+        authService.sentLoginOtp(req.getEmail());
+
+        ApiResponse res = new ApiResponse();
+
+        res.setMessage("otp sent successfully");
+
+        return ResponseEntity.ok(res);
+    }
+
+    @PostMapping("/signing")
+    public ResponseEntity<AuthResponse> loginHandler(
+            @RequestBody LoginRequest req) throws Exception {
+
+        AuthResponse authResponse = authService.signing(req);
+
+        return ResponseEntity.ok(authResponse);
+    }
 }
