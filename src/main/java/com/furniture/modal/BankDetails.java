@@ -9,7 +9,7 @@ public class BankDetails {
 
     private String accountHolderName;
 
-    private String cardNumber;
+    private String swiftCode;
 
 
 }

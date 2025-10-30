@@ -3,9 +3,11 @@ package com.furniture.service.impl;
 import com.furniture.config.JwtProvider;
 import com.furniture.domain.USER_ROLE;
 import com.furniture.modal.Cart;
+import com.furniture.modal.Seller;
 import com.furniture.modal.User;
 import com.furniture.modal.VerificationCode;
 import com.furniture.repository.CartRepository;
+import com.furniture.repository.SellerRepository;
 import com.furniture.repository.UserRepository;
 import com.furniture.repository.VerificationCodeRepository;
 import com.furniture.request.LoginRequest;
@@ -40,18 +42,29 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationCodeRepository verificationCodeRepository;
     private final EmailService emailService;
     private final CustomUserServiceImpl customUserService;
+    private final SellerRepository sellerRepository;
 
     @Override
-    public void sentLoginOtp(String email) throws Exception {
-        String SIGNING_PREFIX = "signin_";
+    public void sentLoginOtp(String email, USER_ROLE role) throws Exception {
+        String SIGNING_PREFIX = "signing_";
 
         if (email.startsWith(SIGNING_PREFIX)) {
             email = email.substring(SIGNING_PREFIX.length());
 
-            User user = userRepository.findByEmail(email);
-            if (user == null) {
-                throw new Exception("user not exist with provided email");
+            if(role.equals(USER_ROLE.ROLE_SELLER)){
+                Seller seller = sellerRepository.findByEmail(email);
+                if (seller == null) {
+                    throw new Exception("seller not found");
+                }
+            } else {
+                System.out.println("email" + email);
+                User user = userRepository.findByEmail(email);
+                if (user == null) {
+                    throw new Exception("user not exist with provided email");
+                }
             }
+
+
         }
 
         VerificationCode isExist = verificationCodeRepository.findByEmail(email);
@@ -84,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByEmail(req.getEmail());
 
-        if (user != null) {
+        if (user == null) {
             User createdUser = new User();
             createdUser.setEmail(req.getEmail());
             createdUser.setFullName(req.getFullName());

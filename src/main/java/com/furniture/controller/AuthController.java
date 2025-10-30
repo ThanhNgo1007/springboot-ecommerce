@@ -4,6 +4,7 @@ import com.furniture.domain.USER_ROLE;
 import com.furniture.modal.User;
 import com.furniture.modal.VerificationCode;
 import com.furniture.repository.UserRepository;
+import com.furniture.request.LoginOtpRequest;
 import com.furniture.request.LoginRequest;
 import com.furniture.response.ApiResponse;
 import com.furniture.response.AuthResponse;
@@ -39,10 +40,10 @@ public class AuthController {
 
     @PostMapping("/sent/login-signup-otp")
     public ResponseEntity<ApiResponse> sentOtpHandler(
-            @RequestBody VerificationCode req) throws Exception {
+            @RequestBody LoginOtpRequest req) throws Exception {
 
 
-        authService.sentLoginOtp(req.getEmail());
+        authService.sentLoginOtp(req.getEmail(), req.getRole());
 
         ApiResponse res = new ApiResponse();
 
