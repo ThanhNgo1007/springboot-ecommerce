@@ -43,14 +43,15 @@ public class SellerController {
         String email = req.getEmail();
 
         req.setEmail("seller_"+email);
+        System.out.println(otp+" - "+email);
         AuthResponse authResponse = authService.signing(req);
 
         return ResponseEntity.ok(authResponse);
     }
 
     @PatchMapping("/verify/{otp}")
-    public ResponseEntity<Seller> verifySellerEmail(@PathVariable String otp)
-        throws Exception {
+    public ResponseEntity<Seller> verifySellerEmail(
+            @PathVariable String otp) throws Exception {
 
         VerificationCode verificationCode = verificationCodeRepository.findByOtp(otp);
 
@@ -63,22 +64,48 @@ public class SellerController {
         return new ResponseEntity<>(seller, HttpStatus.OK);
     }
 
+//    @PostMapping
+//    public ResponseEntity<Seller> createSeller(@RequestBody Seller seller)
+//            throws Exception, MessagingException {
+//        Seller savedSeller = sellerService.createSeller(seller);
+//
+//        String otp = OtpUtil.generateOtp();
+//
+//        VerificationCode verificationCode = new VerificationCode();
+//        verificationCode.setOtp(otp);
+//        verificationCode.setEmail(seller.getEmail());
+//        verificationCodeRepository.save(verificationCode);
+//
+//        String subject="AptDeco Email Verification Code";
+//        String text="Welcome to AptDeco, verify your account using this link ";
+//        String frontend_url = "http://localhost:3000/verify-seller/";
+//        emailService.sendVerificationOtpEmail(seller.getEmail(), verificationCode.getOtp(), subject, text + frontend_url);
+//
+//        return new ResponseEntity<>(savedSeller, HttpStatus.CREATED);
+//    }
+
     @PostMapping
     public ResponseEntity<Seller> createSeller(@RequestBody  Seller seller)
             throws Exception, MessagingException {
+
         Seller savedSeller = sellerService.createSeller(seller);
 
         String otp = OtpUtil.generateOtp();
 
         VerificationCode verificationCode = new VerificationCode();
         verificationCode.setOtp(otp);
-        verificationCode.setEmail(seller.getEmail());
-        verificationCodeRepository.save(verificationCode);
 
+        // --- SỬA LỖI Ở ĐÂY ---
+        // Lỗi cũ: verificationCode.setEmail(seller.getEmail());
+        verificationCode.setEmail(savedSeller.getEmail()); // <-- Dùng email TỪ ĐỐI TƯỢNG ĐÃ LƯU
+        // --- KẾT THÚC SỬA ---
+
+        verificationCodeRepository.save(verificationCode);
         String subject="AptDeco Email Verification Code";
         String text="Welcome to AptDeco, verify your account using this link ";
         String frontend_url = "http://localhost:3000/verify-seller/";
-        emailService.sendVerificationOtpEmail(seller.getEmail(), verificationCode.getOtp(), subject, text + frontend_url);
+
+        emailService.sendVerificationOtpEmail(savedSeller.getEmail(), verificationCode.getOtp(), subject, text + frontend_url);
 
         return new ResponseEntity<>(savedSeller, HttpStatus.CREATED);
     }
