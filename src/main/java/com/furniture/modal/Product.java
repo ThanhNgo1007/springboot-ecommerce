@@ -6,7 +6,9 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -38,8 +40,24 @@ public class Product {
 
     private int numRatings;
 
+
+    // --- Chỉ một Room ---
     @ManyToOne
-    private Category category;
+    @JoinColumn(name = "room_id")
+    private Category room;
+
+
+    //    @ManyToOne
+//    private Category category;
+// ✅ Một sản phẩm có thể thuộc nhiều Category3 (hoặc nhánh khác nhau)
+    @ManyToMany
+    @JoinTable(
+        name = "product_category",
+        joinColumns = @JoinColumn(name = "product_id"),
+        inverseJoinColumns = @JoinColumn(name = "category_id")
+)
+    private Set<Category> categories = new HashSet<>();
+
 
     @ManyToOne
     private Seller seller;

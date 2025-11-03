@@ -3,6 +3,7 @@ package com.furniture.service.impl;
 import com.furniture.config.JwtProvider;
 import com.furniture.domain.AccountStatus;
 import com.furniture.domain.USER_ROLE;
+import com.furniture.exceptions.SellerException;
 import com.furniture.modal.Address;
 import com.furniture.modal.Seller;
 import com.furniture.repository.AddressRepository;
@@ -53,9 +54,9 @@ public class SellerServiceImpl implements SellerService {
     }
 
     @Override
-    public Seller getSellerById(Long id) throws Exception {
+    public Seller getSellerById(Long id) throws SellerException {
         return sellerRepository.findById(id)
-                .orElseThrow(() -> new Exception("seller not found with id " + id));
+                .orElseThrow(() -> new SellerException("seller not found with id " + id));
     }
 
     @Override
