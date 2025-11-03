@@ -2,6 +2,7 @@ package com.furniture.controller;
 
 import com.furniture.config.JwtProvider;
 import com.furniture.domain.AccountStatus;
+import com.furniture.exceptions.SellerException;
 import com.furniture.modal.Seller;
 import com.furniture.modal.SellerReport;
 import com.furniture.modal.VerificationCode;
@@ -112,7 +113,7 @@ public class SellerController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Seller> getSellerById(@PathVariable Long id)
-            throws Exception {
+            throws SellerException {
         Seller seller = sellerService.getSellerById(id);
 
         return new ResponseEntity<>(seller, HttpStatus.OK);
@@ -142,7 +143,7 @@ public class SellerController {
         return ResponseEntity.ok(sellers);
     }
 
-    @PatchMapping()
+    @PatchMapping
     public ResponseEntity<Seller> updateSeller(
             @RequestHeader("Authorization") String jwt,
             @RequestBody Seller seller) throws Exception {
