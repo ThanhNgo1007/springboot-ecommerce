@@ -12,11 +12,11 @@ public class CreateProductRequest {
     private String description;
     private int msrpPrice;
     private int sellingPrice;
+    private int quantity;
     private String color;
     private String room;
     private List<String> images;
     private String category;
     private String category2;
     private String category3;
-    //private String sizes;
 }

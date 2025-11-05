@@ -13,6 +13,7 @@ import com.furniture.response.ApiResponse;
 import com.furniture.response.AuthResponse;
 import com.furniture.service.AuthService;
 import com.furniture.service.EmailService;
+import com.furniture.service.SellerReportService;
 import com.furniture.service.SellerService;
 import com.furniture.utils.OtpUtil;
 import jakarta.mail.MessagingException;
@@ -33,6 +34,7 @@ public class SellerController {
     private final AuthService authService;
     private final EmailService emailService;
     private final JwtProvider jwtProvider;
+    private final SellerReportService sellerReportService;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> loginSeller(
@@ -126,15 +128,15 @@ public class SellerController {
         Seller seller = sellerService.getSellerProfile(jwt);
         return new ResponseEntity<>(seller, HttpStatus.OK);
     }
-//
-//    @GetMapping("/report")
-//    public ResponseEntity<SellerReport> getSellerReport(
-//            @RequestHeader("Authorization") String jwt ) throws Exception {
-//        String email = jwtProvider.getEmailFromToken(jwt);
-//        Seller seller = sellerService.getSellerByEmail(email);
-//        SellerReport report = sellerReportService.getSellerReport(seller);
-//        return new ResponseEntity<>(report, HttpStatus.OK);
-//    }
+
+    @GetMapping("/report")
+    public ResponseEntity<SellerReport> getSellerReport(
+            @RequestHeader("Authorization") String jwt ) throws Exception {
+
+        Seller seller = sellerService.getSellerProfile(jwt);
+        SellerReport report = sellerReportService.getSellerReport(seller);
+        return new ResponseEntity<>(report, HttpStatus.OK);
+    }
 
     @GetMapping
     public ResponseEntity<List<Seller>> getAllSellers(

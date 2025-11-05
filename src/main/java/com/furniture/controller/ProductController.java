@@ -33,6 +33,7 @@ public class ProductController {
 
     }
 
+    @GetMapping("/search")
     public ResponseEntity<List<Product>> searchProduct(
             @RequestParam(required = false) String query) {
 
@@ -40,6 +41,7 @@ public class ProductController {
         return new ResponseEntity<>(products, HttpStatus.OK);
     }
 
+    @GetMapping()
     public ResponseEntity<Page<Product>> getAllProducts(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String brand,

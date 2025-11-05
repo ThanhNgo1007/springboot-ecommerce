@@ -40,24 +40,8 @@ public class Product {
 
     private int numRatings;
 
-
-    // --- Chỉ một Room ---
     @ManyToOne
-    @JoinColumn(name = "room_id")
-    private Category room;
-
-
-    //    @ManyToOne
-//    private Category category;
-// ✅ Một sản phẩm có thể thuộc nhiều Category3 (hoặc nhánh khác nhau)
-    @ManyToMany
-    @JoinTable(
-        name = "product_category",
-        joinColumns = @JoinColumn(name = "product_id"),
-        inverseJoinColumns = @JoinColumn(name = "category_id")
-)
-    private Set<Category> categories = new HashSet<>();
-
+    private Category category;
 
     @ManyToOne
     private Seller seller;
@@ -72,3 +56,47 @@ public class Product {
 
 
 }
+//@Entity
+//@Getter
+//@Setter
+//@AllArgsConstructor
+//@NoArgsConstructor
+//public class Product {
+//
+//    @Id
+//    @GeneratedValue(strategy = GenerationType.AUTO)
+//    private Long id;
+//
+//    private String title;
+//    private String description;
+//    private int msrpPrice;
+//    private int sellingPrice;
+//    private int discountPercent;
+//    private int quantity;
+//    private String color;
+//    private int numRatings;
+//
+//    @ElementCollection
+//    private List<String> images = new ArrayList<>();
+//
+//    @ManyToOne
+//    @JoinColumn(name = "room_id")
+//    private Category room; // Room cấp 1 (Bedroom, Living Room...)
+//
+//    @ManyToMany
+//    @JoinTable(
+//            name = "product_category",
+//            joinColumns = @JoinColumn(name = "product_id"),
+//            inverseJoinColumns = @JoinColumn(name = "category_id")
+//    )
+//    private Set<Category> categories = new HashSet<>();
+//
+//    @ManyToOne
+//    private Seller seller;
+//
+//    private LocalDateTime createdAt;
+//
+//    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+//    private List<Review> reviews = new ArrayList<>();
+//}
+

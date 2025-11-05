@@ -13,15 +13,12 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findBySellerId(Long id);
 
     @Query("""
-    SELECT DISTINCT p
+    SELECT  p
     FROM Product p
-    LEFT JOIN p.categories c
     WHERE 
         (:query IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :query, '%')))
         OR
-        (:query IS NULL OR LOWER(c.categoryId) LIKE LOWER(CONCAT('%', :query, '%')))
-        OR
-        (:query IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')))
+        (:query IS NULL OR LOWER(p.category.name) LIKE LOWER(CONCAT('%', :query, '%')))
 """)
     List<Product> searchProduct(@Param("query") String query);
 
