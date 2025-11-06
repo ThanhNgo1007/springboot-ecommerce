@@ -4,6 +4,7 @@ import com.furniture.domain.PaymentMethod;
 import com.furniture.modal.*;
 import com.furniture.response.PaymentLinkResponse;
 import com.furniture.service.*;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,38 +23,71 @@ public class OrderController {
     private final CartService cartService;
     private final SellerService sellerService;
     private final SellerReportService sellerReportService;
+    private final PaymentService paymentService;
 
-    @PostMapping()
-    public ResponseEntity<PaymentLinkResponse> createOrderHandler(
-            @RequestBody Address shippingAddress,
-            @RequestParam PaymentMethod paymentMethod,
-            @RequestHeader("Authorization") String jwt
-    ) throws Exception {
-
-        User user = userService.findUserByJwtToken(jwt);
-        Cart cart = cartService.findUserCart(user);
-        Set<Order> orders = orderService.createOrder(user, shippingAddress, cart);
-
-       // PaymentOrder paymentOrder = paymentService.createOrder(user, orders);
-
-        PaymentLinkResponse res = new PaymentLinkResponse();
-
-//        if (paymentMethod.equals(PaymentMethod.VNPAY)) {
-//            PaymentLink payment = paymentService.createVnPayPaymentLink(user,
-//                    paymentOrder.getAmount(),
-//                    paymentOrder.getId());
-//            String paymentUrl = payment.get("short_url");
-//            String paymentUrlId = payment.get("id");
+//    @PostMapping()
+//    public ResponseEntity<PaymentLinkResponse> createOrderHandler(
+//            @RequestBody Address shippingAddress,
+//            @RequestParam PaymentMethod paymentMethod,
+//            @RequestHeader("Authorization") String jwt
+//    ) throws Exception {
 //
+//        User user = userService.findUserByJwtToken(jwt);
+//        Cart cart = cartService.findUserCart(user);
+//        Set<Order> orders = orderService.createOrder(user, shippingAddress, cart);
 //
-//            res.setPayment_link_url(paymentUrl);
+//       // PaymentOrder paymentOrder = paymentService.createOrder(user, orders);
 //
-//            paymentOrder.setPaymentLinkId(paymentUrlId);
-//            paymentOrderRepository.save(paymentOrder);
-//        }
+//        PaymentLinkResponse res = new PaymentLinkResponse();
+//
+////        if (paymentMethod.equals(PaymentMethod.VNPAY)) {
+////            PaymentLink payment = paymentService.createVnPayPaymentLink(user,
+////                    paymentOrder.getAmount(),
+////                    paymentOrder.getId());
+////            String paymentUrl = payment.get("short_url");
+////            String paymentUrlId = payment.get("id");
+////
+////
+////            res.setPayment_link_url(paymentUrl);
+////
+////            paymentOrder.setPaymentLinkId(paymentUrlId);
+////            paymentOrderRepository.save(paymentOrder);
+////        }
+//
+//        return new ResponseEntity<>(res, HttpStatus.OK);
+//    }
+@PostMapping()
+public ResponseEntity<PaymentLinkResponse> createOrderHandler(
+        @RequestBody Address shippingAddress,
+        @RequestParam PaymentMethod paymentMethod,
+        @RequestHeader("Authorization") String jwt,
+        HttpServletRequest request
+) throws Exception {
 
-        return new ResponseEntity<>(res, HttpStatus.OK);
+    User user = userService.findUserByJwtToken(jwt);
+    Cart cart = cartService.findUserCart(user);
+    Set<Order> orders = orderService.createOrder(user, shippingAddress, cart);
+
+    PaymentOrder paymentOrder = paymentService.createOrder(user, orders);
+
+    PaymentLinkResponse res = new PaymentLinkResponse();
+
+    if (paymentMethod.equals(PaymentMethod.VNPAY)) {
+
+        String paymentUrl = paymentService.createVnpayPaymentUrl(paymentOrder, request);
+
+        res.setPayment_link_url(paymentUrl);
+
+        paymentOrder.setPaymentLinkId(paymentUrl);
+        res.setPayment_link_id(paymentOrder.getPaymentLinkId());
+    } else if (paymentMethod.equals(PaymentMethod.COD)) {
+        // Handle COD payment
+        res.setPayment_link_url(null);
+        res.setPayment_link_id(null);
     }
+
+    return new ResponseEntity<>(res, HttpStatus.OK);
+}
 
     @GetMapping("/user")
     public ResponseEntity<List<Order>> userOrderHistoryHandler(
