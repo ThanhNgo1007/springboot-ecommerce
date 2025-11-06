@@ -2,11 +2,11 @@ package com.furniture.controller;
 
 import com.furniture.modal.*;
 import com.furniture.response.ApiResponse;
-import com.furniture.response.PaymentLinkResponse;
 import com.furniture.service.PaymentService;
 import com.furniture.service.SellerReportService;
 import com.furniture.service.SellerService;
 import com.furniture.service.UserService;
+import com.furniture.utils.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,19 +29,22 @@ public class PaymentController {
     public ResponseEntity<ApiResponse> paymentSuccessHandler(
             @PathVariable String paymentId,
             @RequestParam String paymentLinkId,
+            @RequestParam(required = false, defaultValue = "00") String vnp_ResponseCode,
+            @RequestParam(required = false, defaultValue = "00") String vnp_TransactionStatus,
             @RequestHeader("Authorization") String jwt
     ) throws Exception {
 
-        User user = userService.findUserByJwtToken(jwt);
-
-        PaymentLinkResponse paymentLinkResponse;
+        // Xác thực user (đảm bảo JWT hợp lệ)
+        userService.findUserByJwtToken(jwt);
 
         PaymentOrder paymentOrder = paymentService.getPaymentOrderByPaymentId(paymentId);
 
         Boolean success = paymentService.proceedPaymentOrder(
                 paymentOrder,
                 paymentId,
-                paymentLinkId
+                paymentLinkId,
+                vnp_ResponseCode,
+                vnp_TransactionStatus
         );
 
         if(success){
@@ -61,23 +64,11 @@ public class PaymentController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    // API Return (User quay về sau khi thanh toán)
     @GetMapping("/vnpay/return")
-    public ResponseEntity<ApiResponse> vnpayReturn(@RequestParam Map<String, String> params) {
-        try {
-            Map<String, String> result = paymentService.vnpayReturn(params);
-
-            ApiResponse response = new ApiResponse();
-            response.setMessage(result.get("message"));
-
-            if ("success".equals(result.get("status"))) {
-                return new ResponseEntity<>(response, HttpStatus.OK);
-            } else {
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-        } catch (Exception e) {
-            ApiResponse response = new ApiResponse();
-            response.setMessage("Error processing payment return: " + e.getMessage());
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    public ResponseEntity<?> vnpayReturn(HttpServletRequest request) throws Exception {
+        Map<String, String> params = VNPayUtil.getAllRequestParams(request);
+        // Trả về 1 redirect (302) về ReactJS
+        return paymentService.vnpayReturn(params);
     }
 }

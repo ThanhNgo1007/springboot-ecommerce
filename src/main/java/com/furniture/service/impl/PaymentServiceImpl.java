@@ -14,12 +14,10 @@ import com.furniture.service.PaymentService;
 import com.furniture.utils.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity; // <-- THÊM IMPORT
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -35,14 +33,15 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public PaymentOrder createOrder(User user, Set<Order> orders) {
         Long amount = orders.stream()
-                .mapToLong(order -> order.getTotalSellingPrice())
+                .mapToLong(Order::getTotalSellingPrice)
                 .sum();
 
         PaymentOrder paymentOrder = new PaymentOrder();
         paymentOrder.setAmount(amount);
         paymentOrder.setUser(user);
         paymentOrder.setOrders(orders);
-        paymentOrder.setPaymentMethod(PaymentMethod.VNPAY);
+        // Gán phương thức thanh toán cho PaymentOrder
+        paymentOrder.setPaymentMethod(PaymentMethod.VNPAY); // Hoặc lấy động
         paymentOrder.setStatus(PaymentOrderStatus.PENDING);
 
         return paymentOrderRepository.save(paymentOrder);
@@ -56,69 +55,82 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentOrder getPaymentOrderByPaymentId(String paymentId) throws Exception {
-        PaymentOrder paymentOrder = paymentOrderRepository.findById(Long.parseLong(paymentId))
-                .orElseThrow(() -> new Exception("Payment order not found"));
+        // Sửa: Tìm bằng paymentLinkId (vnp_TxnRef)
+        PaymentOrder paymentOrder = paymentOrderRepository.findByPaymentLinkId(paymentId);
+        if (paymentOrder == null) {
+            throw new Exception("Payment order not found with paymentId " + paymentId);
+        }
         return paymentOrder;
     }
 
+    // --- HÀM ĐÃ SỬA THEO YÊU CẦU CỦA BẠN (SỬA LỖI getPaymentDetails) ---
     @Override
     @Transactional
     public Boolean proceedPaymentOrder(PaymentOrder paymentOrder,
-                                       String paymentId,
-                                       String paymentLinkId) throws Exception {
+                                       String paymentId, // This is vnp_TransactionNo
+                                       String paymentLinkId, // This is vnp_TxnRef
+                                       String vnp_ResponseCode,
+                                       String vnp_TransactionStatus) throws Exception {
+
         if (paymentOrder.getStatus().equals(PaymentOrderStatus.PENDING)) {
-            paymentOrder.setStatus(PaymentOrderStatus.SUCCESS);
-            paymentOrder.setPaymentLinkId(paymentLinkId);
-            paymentOrderRepository.save(paymentOrder);
 
-            // Update orders status
-            for (Order order : paymentOrder.getOrders()) {
-                order.setPaymentStatus(PaymentStatus.COMPLETED);
-                order.setOrderStatus(OrderStatus.PLACED);
-                orderRepository.save(order);
+            // 1. Kiểm tra thanh toán thành công
+            if ("00".equals(vnp_ResponseCode) && "00".equals(vnp_TransactionStatus)) {
+
+                Set<Order> orders = paymentOrder.getOrders();
+
+                // 2. Lặp qua các đơn hàng con
+                for (Order order : orders) {
+                    order.setPaymentStatus(PaymentStatus.COMPLETED);
+                    order.setOrderStatus(OrderStatus.PLACED);
+
+                    // 3. LƯU PAYMENT ID VÀO ORDER CON (ĐÂY LÀ CHỖ SỬA)
+                    order.getPaymentDetails().setPaymentId(paymentId); //
+                    order.getPaymentDetails().setStatus(PaymentStatus.COMPLETED); //
+
+                    orderRepository.save(order);
+                }
+
+                // 4. Cập nhật PaymentOrder tổng
+                paymentOrder.setStatus(PaymentOrderStatus.SUCCESS);
+                paymentOrderRepository.save(paymentOrder);
+                return true; // Thành công
             }
-            return true;
+
+            // 5. Nếu thanh toán thất bại
+            paymentOrder.setStatus(PaymentOrderStatus.FAILED);
+            paymentOrderRepository.save(paymentOrder);
+            return false; // Thất bại
         }
-        return false;
+        return false; // Đã xử lý rồi
     }
+    // --- KẾT THÚC HÀM SỬA ---
 
+    // --- HÀM ĐÃ SỬA (THEO CHỮ KÝ HÀM BẠN YÊU CẦU) ---
     @Override
-    public String createVnpayPaymentUrl(PaymentOrder paymentOrder,
-                                        HttpServletRequest request) throws Exception {
+    public String createVnpayPaymentLink(User user, Long amount, Long paymentOrderId,
+                                         HttpServletRequest request) throws Exception {
 
-        String vnp_Version = vnPayConfig.getVersion();
-        String vnp_Command = vnPayConfig.getCommand();
-        String orderType = vnPayConfig.getOrderType();
+        long vnpAmount = amount * 100; // VNPay yêu cầu nhân 100
+        String vnp_TxnRef = VNPayUtil.getRandomNumber(10); // Mã giao dịch (duy nhất)
 
-        long amount = paymentOrder.getAmount() * 100; // VNPay yêu cầu nhân 100
-        String bankCode = "";
-
-        String vnp_TxnRef = VNPayUtil.getRandomNumber(8);
-        String vnp_IpAddr = VNPayUtil.getIpAddress(request);
-        String vnp_TmnCode = vnPayConfig.getTmnCode();
+        // Lấy PaymentOrder và lưu vnp_TxnRef
+        PaymentOrder paymentOrder = getPaymentOrderById(paymentOrderId);
+        paymentOrder.setPaymentLinkId(vnp_TxnRef); // Lưu mã này để kiểm tra khi VNPAY gọi về
+        paymentOrderRepository.save(paymentOrder);
 
         Map<String, String> vnp_Params = new HashMap<>();
-        vnp_Params.put("vnp_Version", vnp_Version);
-        vnp_Params.put("vnp_Command", vnp_Command);
-        vnp_Params.put("vnp_TmnCode", vnp_TmnCode);
-        vnp_Params.put("vnp_Amount", String.valueOf(amount));
+        vnp_Params.put("vnp_Version", vnPayConfig.getVersion());
+        vnp_Params.put("vnp_Command", vnPayConfig.getCommand());
+        vnp_Params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
+        vnp_Params.put("vnp_Amount", String.valueOf(vnpAmount));
         vnp_Params.put("vnp_CurrCode", "VND");
-
-        if (bankCode != null && !bankCode.isEmpty()) {
-            vnp_Params.put("vnp_BankCode", bankCode);
-        }
         vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
-        vnp_Params.put("vnp_OrderInfo", "Thanh toan don hang:" + paymentOrder.getId());
-        vnp_Params.put("vnp_OrderType", orderType);
-
-        String locate = "vn";
-        if (locate != null && !locate.isEmpty()) {
-            vnp_Params.put("vnp_Locale", locate);
-        } else {
-            vnp_Params.put("vnp_Locale", "vn");
-        }
+        vnp_Params.put("vnp_OrderInfo", "Thanh toan don hang:" + paymentOrderId);
+        vnp_Params.put("vnp_OrderType", vnPayConfig.getOrderType());
+        vnp_Params.put("vnp_Locale", "vn");
         vnp_Params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-        vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
+        vnp_Params.put("vnp_IpAddr", VNPayUtil.getIpAddress(request)); // IP bắt buộc
 
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
@@ -129,105 +141,60 @@ public class PaymentServiceImpl implements PaymentService {
         String vnp_ExpireDate = formatter.format(cld.getTime());
         vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
 
-        List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
-            String fieldValue = vnp_Params.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                //Build hash data
-                hashData.append(fieldName);
-                hashData.append('=');
-                try {
-                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                    //Build query
-                    query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString()));
-                    query.append('=');
-                    query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
-                }
-                if (itr.hasNext()) {
-                    query.append('&');
-                    hashData.append('&');
-                }
-            }
-        }
-        String queryUrl = query.toString();
-        String vnp_SecureHash = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
-        queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
-        String paymentUrl = vnPayConfig.getVnpUrl() + "?" + queryUrl;
+        // --- SỬA LỖI HASH ---
+        // 1. Tạo hashData (KHÔNG encode)
+        String hashData = VNPayUtil.getHashData(vnp_Params);
 
-        // Save payment link id
-        paymentOrder.setPaymentLinkId(vnp_TxnRef);
-        paymentOrderRepository.save(paymentOrder);
+        // 2. Tạo checksum
+        String vnp_SecureHash = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData);
+        vnp_Params.put("vnp_SecureHash", vnp_SecureHash); // Thêm hash vào params
 
-        return paymentUrl;
+        // 3. Tạo queryUrl (CÓ encode)
+        String queryUrl = VNPayUtil.getQuery(vnp_Params);
+        // --- KẾT THÚC SỬA ---
+
+        return vnPayConfig.getVnpUrl() + "?" + queryUrl;
     }
 
     @Override
     @Transactional
-    public Map<String, String> vnpayReturn(Map<String, String> params) throws Exception {
-        Map<String, String> result = new HashMap<>();
-
-        String vnp_SecureHash = params.get("vnp_SecureHash");
-        params.remove("vnp_SecureHashType");
-        params.remove("vnp_SecureHash");
-
-        // Verify checksum
-        List<String> fieldNames = new ArrayList<>(params.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
-            String fieldValue = params.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                hashData.append(fieldName);
-                hashData.append('=');
-                try {
-                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
-                }
-                if (itr.hasNext()) {
-                    hashData.append('&');
-                }
-            }
+    public ResponseEntity<?> vnpayReturn(Map<String, String> params) throws Exception {
+        String vnp_SecureHash = params.remove("vnp_SecureHash");
+        if (params.containsKey("vnp_SecureHashType")) {
+            params.remove("vnp_SecureHashType");
         }
 
-        String signValue = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
+        String hashData = VNPayUtil.getHashData(params);
+        String signValue = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData);
+
+        // Đây là URL ReactJS (FE) của bạn
+        String frontendUrl = "http://localhost:3000/payment/result";
 
         if (signValue.equals(vnp_SecureHash)) {
             String vnp_ResponseCode = params.get("vnp_ResponseCode");
+            String vnp_TransactionStatus = params.get("vnp_TransactionStatus");
             String vnp_TxnRef = params.get("vnp_TxnRef");
             String vnp_TransactionNo = params.get("vnp_TransactionNo");
 
-            if ("00".equals(vnp_ResponseCode)) {
-                // Payment success
-                PaymentOrder paymentOrder = paymentOrderRepository.findByPaymentLinkId(vnp_TxnRef);
-                if (paymentOrder != null) {
-                    proceedPaymentOrder(paymentOrder, vnp_TransactionNo, vnp_TxnRef);
-                    result.put("status", "success");
-                    result.put("message", "Thanh toán thành công");
-                    result.put("orderId", paymentOrder.getId().toString());
-                } else {
-                    result.put("status", "error");
-                    result.put("message", "Không tìm thấy đơn hàng");
-                }
+            // Xử lý thanh toán cho localhost
+            PaymentOrder paymentOrder = paymentOrderRepository.findByPaymentLinkId(vnp_TxnRef);
+            if (paymentOrder != null && paymentOrder.getStatus() == PaymentOrderStatus.PENDING) {
+                // Chỉ xử lý nếu đơn hàng chưa được xử lý
+                proceedPaymentOrder(paymentOrder, vnp_TransactionNo, vnp_TxnRef, vnp_ResponseCode, vnp_TransactionStatus);
+            }
+
+            // Redirect về frontend với thông tin kết quả
+            if ("00".equals(vnp_ResponseCode) && "00".equals(vnp_TransactionStatus)) {
+                return ResponseEntity.status(302).header("Location",
+                        frontendUrl + "?success=true&vnp_TxnRef=" + vnp_TxnRef).build();
             } else {
-                // Payment failed
-                result.put("status", "failed");
-                result.put("message", "Thanh toán thất bại. Mã lỗi: " + vnp_ResponseCode);
+                return ResponseEntity.status(302).header("Location",
+                        frontendUrl + "?success=false&vnp_ResponseCode=" + vnp_ResponseCode).build();
             }
         } else {
-            result.put("status", "error");
-            result.put("message", "Chữ ký không hợp lệ");
+            // Checksum không hợp lệ
+            return ResponseEntity.status(302).header("Location",
+                    frontendUrl + "?success=false&error=checksum_fail").build();
         }
-
-        return result;
     }
 }

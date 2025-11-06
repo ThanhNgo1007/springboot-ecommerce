@@ -74,21 +74,34 @@ public ResponseEntity<PaymentLinkResponse> createOrderHandler(
 
     if (paymentMethod.equals(PaymentMethod.VNPAY)) {
 
-        String paymentUrl = paymentService.createVnpayPaymentUrl(paymentOrder, request);
+        // --- SỬA LOGIC GỌI ---
+        // Gọi hàm mới với các tham số yêu cầu
+        String paymentUrl = paymentService.createVnpayPaymentLink(
+                user,
+                paymentOrder.getAmount(),
+                paymentOrder.getId(),
+                request
+        );
 
         res.setPayment_link_url(paymentUrl);
 
-        paymentOrder.setPaymentLinkId(paymentUrl);
+        // Lấy payment_link_id (vnp_TxnRef) đã được lưu bên trong service
+        paymentOrder.setPaymentLinkId(paymentOrder.getPaymentLinkId());
         res.setPayment_link_id(paymentOrder.getPaymentLinkId());
+
+        // Lưu lại PaymentOrder (bước này đã được thực hiện bên trong service,
+        // nhưng gọi lại cũng không sao, hoặc bạn có thể bỏ qua dòng save)
+        // paymentOrderRepository.save(paymentOrder);
+        // --- KẾT THÚC SỬA ---
+
     } else if (paymentMethod.equals(PaymentMethod.COD)) {
-        // Handle COD payment
+        // Xử lý COD
         res.setPayment_link_url(null);
         res.setPayment_link_id(null);
     }
 
     return new ResponseEntity<>(res, HttpStatus.OK);
 }
-
     @GetMapping("/user")
     public ResponseEntity<List<Order>> userOrderHistoryHandler(
             @RequestHeader("Authorization") String jwt
@@ -103,7 +116,8 @@ public ResponseEntity<PaymentLinkResponse> createOrderHandler(
             @PathVariable Long orderId,
             @RequestHeader("Authorization") String jwt
     ) throws Exception {
-        User user = userService.findUserByJwtToken(jwt);
+        // Xác thực user (đảm bảo JWT hợp lệ)
+        userService.findUserByJwtToken(jwt);
         Order orders = orderService.findOrderById(orderId);
         return new ResponseEntity<>(orders, HttpStatus.ACCEPTED);
     }
@@ -114,7 +128,8 @@ public ResponseEntity<PaymentLinkResponse> createOrderHandler(
             @RequestHeader("Authorization") String jwt
     ) throws Exception {
         System.out.println("------ controller");
-        User user = userService.findUserByJwtToken(jwt);
+        // Xác thực user (đảm bảo JWT hợp lệ)
+        userService.findUserByJwtToken(jwt);
         OrderItem orderItem = orderService.getOrderItemById(orderItemId);
         return new ResponseEntity<>(orderItem, HttpStatus.ACCEPTED);
     }
