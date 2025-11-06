@@ -111,20 +111,32 @@ public class PaymentServiceImpl implements PaymentService {
     public String createVnpayPaymentLink(User user, Long amount, Long paymentOrderId,
                                          HttpServletRequest request) throws Exception {
 
-        long vnpAmount = amount * 100; // VNPay yêu cầu nhân 100
-        String vnp_TxnRef = VNPayUtil.getRandomNumber(10); // Mã giao dịch (duy nhất)
-
         // Lấy PaymentOrder và lưu vnp_TxnRef
         PaymentOrder paymentOrder = getPaymentOrderById(paymentOrderId);
+        String vnp_TxnRef = VNPayUtil.getRandomNumber(10); // Mã giao dịch (duy nhất)
         paymentOrder.setPaymentLinkId(vnp_TxnRef); // Lưu mã này để kiểm tra khi VNPAY gọi về
         paymentOrderRepository.save(paymentOrder);
+
+        // Convert amount từ USD sang VND nếu cần
+        // VNPay chỉ hỗ trợ VND, nên nếu website dùng USD thì phải convert
+        long amountInVnd = amount;
+        String defaultCurrency = vnPayConfig.getDefaultCurrency();
+        
+        if ("USD".equalsIgnoreCase(defaultCurrency)) {
+            // Convert USD sang VND
+            double exchangeRate = vnPayConfig.getUsdToVndRate();
+            amountInVnd = Math.round(amount * exchangeRate);
+        }
+        
+        // VNPay yêu cầu amount phải nhân 100 (ví dụ: 1000 VND = 100000)
+        long vnpAmount = amountInVnd * 100;
 
         Map<String, String> vnp_Params = new HashMap<>();
         vnp_Params.put("vnp_Version", vnPayConfig.getVersion());
         vnp_Params.put("vnp_Command", vnPayConfig.getCommand());
         vnp_Params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
         vnp_Params.put("vnp_Amount", String.valueOf(vnpAmount));
-        vnp_Params.put("vnp_CurrCode", "VND");
+        vnp_Params.put("vnp_CurrCode", "VND"); // VNPay chỉ hỗ trợ VND
         vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
         vnp_Params.put("vnp_OrderInfo", "Thanh toan don hang:" + paymentOrderId);
         vnp_Params.put("vnp_OrderType", vnPayConfig.getOrderType());
